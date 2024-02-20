@@ -21,6 +21,7 @@
 #define __BTRFS_RESCUE_H__
 
 int btrfs_recover_superblocks(const char *path, int yes);
-int btrfs_recover_chunk_tree(const char *path, int yes);
+int btrfs_recover_chunk_tree(const char *path, int yes, int dump,
+                             int load_offsets, char *offset_file_dir);
 
 #endif

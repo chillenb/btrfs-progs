@@ -1813,14 +1813,14 @@ int btrfs_num_copies(struct btrfs_fs_info *fs_info, u64 logical, u64 len)
 
 	ce = search_cache_extent(&map_tree->cache_tree, logical);
 	if (!ce) {
-		fprintf(stderr, "No mapping for %llu-%llu\n",
+		fprintf(stderr, "No mapping for %8LX-%8LX\n",
 			(unsigned long long)logical,
 			(unsigned long long)logical+len);
 		return 1;
 	}
 	if (ce->start > logical || ce->start + ce->size < logical) {
-		fprintf(stderr, "Invalid mapping for %llu-%llu, got "
-			"%llu-%llu\n", (unsigned long long)logical,
+		fprintf(stderr, "Invalid mapping for %8LX-%8LX, got "
+			"%8LX-%8LX\n", (unsigned long long)logical,
 			(unsigned long long)logical+len,
 			(unsigned long long)ce->start,
 			(unsigned long long)ce->start + ce->size);
@@ -2445,7 +2445,7 @@ static int read_one_chunk(struct btrfs_fs_info *fs_info, struct btrfs_key *key,
 	ret = insert_cache_extent(&map_tree->cache_tree, &map->ce);
 	if (ret < 0) {
 		errno = -ret;
-		error("failed to add chunk map start=%llu len=%llu: %d (%m)",
+		error("failed to add chunk map start=%8LX len=%8LX: %d (%m)",
 		      map->ce.start, map->ce.size, ret);
 	}
 
@@ -3043,7 +3043,7 @@ static int reset_device_item_total_bytes(struct btrfs_fs_info *fs_info,
 		return ret;
 	}
 	btrfs_release_path(&path);
-	printf("Fixed device size for devid %llu, old size: %llu new size: %llu\n",
+	printf("Fixed device size for devid %llu, old size: %8LX new size: %8LX\n",
 		device->devid, old_bytes, device->total_bytes);
 	return 1;
 
@@ -3093,7 +3093,7 @@ static int btrfs_fix_block_device_size(struct btrfs_fs_info *fs_info,
 
 	if (ret == 0) {
 		error(
-"found dev extents covering or beyond bytenr %llu, can not shrink the device without losing data",
+"found dev extents covering or beyond bytenr %8LX, can not shrink the device without losing data",
 			device->devid);
 		return -EINVAL;
 	}
@@ -3141,7 +3141,7 @@ int btrfs_fix_super_size(struct btrfs_fs_info *fs_info)
 		 * all devices' total_bytes.
 		 */
 		if (!IS_ALIGNED(device->total_bytes, fs_info->sectorsize)) {
-			error("device %llu total_bytes %llu not aligned to %u",
+			error("device %llu total_bytes %8LX not aligned to %u",
 				device->devid, device->total_bytes,
 				fs_info->sectorsize);
 			return -EUCLEAN;

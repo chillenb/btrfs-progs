@@ -48,6 +48,8 @@ struct recover_control {
 	int verbose;
 	int yes;
 	int dump;
+	int load_offsets;
+	char *offset_file_dir;
 
 	u16 csum_size;
 	u16 csum_type;
@@ -196,23 +198,25 @@ static struct btrfs_chunk *create_chunk_item(struct chunk_record *record)
 	return ret;
 }
 
-static void init_recover_control(struct recover_control *rc, int yes)
-{
-	memset(rc, 0, sizeof(struct recover_control));
-	cache_tree_init(&rc->chunk);
-	cache_tree_init(&rc->eb_cache);
-	block_group_tree_init(&rc->bg);
-	device_extent_tree_init(&rc->devext);
+static void init_recover_control(struct recover_control *rc, int yes, int dump,
+                                 int load_offsets, char *offset_file_dir) {
+  memset(rc, 0, sizeof(struct recover_control));
+  cache_tree_init(&rc->chunk);
+  cache_tree_init(&rc->eb_cache);
+  block_group_tree_init(&rc->bg);
+  device_extent_tree_init(&rc->devext);
 
-	INIT_LIST_HEAD(&rc->good_chunks);
-	INIT_LIST_HEAD(&rc->bad_chunks);
-	INIT_LIST_HEAD(&rc->rebuild_chunks);
-	INIT_LIST_HEAD(&rc->unrepaired_chunks);
+  INIT_LIST_HEAD(&rc->good_chunks);
+  INIT_LIST_HEAD(&rc->bad_chunks);
+  INIT_LIST_HEAD(&rc->rebuild_chunks);
+  INIT_LIST_HEAD(&rc->unrepaired_chunks);
 
-	rc->verbose = bconf.verbose;
-	rc->dump = bconf.dump;
-	rc->yes = yes;
-	pthread_mutex_init(&rc->rc_lock, NULL);
+  rc->verbose = bconf.verbose;
+  rc->dump = dump;
+  rc->yes = yes;
+  rc->load_offsets = load_offsets;
+  rc->offset_file_dir = offset_file_dir;
+  pthread_mutex_init(&rc->rc_lock, NULL);
 }
 
 static void free_recover_control(struct recover_control *rc)
@@ -437,7 +441,7 @@ static void print_device_extent_info(struct device_extent_record *rec,
 {
 	if (prefix)
 		printf("%s", prefix);
-	printf("Device extent: devid = %llu, start = %llu, len = %llu, chunk offset = %llu\n",
+	printf("Device extent: devid = %llu, start = %8LX, len = %8LX, chunk offset = %8LX\n",
 	       rec->objectid, rec->offset, rec->length, rec->chunk_offset);
 }
 
@@ -628,7 +632,7 @@ bg_check:
 		return ret;
 	} else if (ret > 0) {
 		if (rc->verbose)
-			fprintf(stderr, "No block group[%llu, %llu]\n",
+			fprintf(stderr, "No block group[%8LX, %8LX]\n",
 				key.objectid, key.offset);
 		btrfs_release_path(&path);
 		return -ENOENT;
@@ -840,22 +844,123 @@ next_node:
 		bytenr += rc->nodesize;
 	}
 out:
+	if(rc->dump) {
+		if(offsets_file) {
+			fclose(offsets_file);
+		}
+	}
+	close(fd);
+	free(buf);
+	return ret;
+}
 
-	// if(rc->dump) {
-	// 	snprintf(numberbuffer, 90, "./dump/%LX.dat", bytenr);
-	// 	FILE *myfile = fopen(numberbuffer, "wb");
-	// 	if (!myfile) {
-	// 		perror("File opening failed");
-	// 		goto out;
-	// 	} else {
-	// 		fwrite(buf, 1, rc->nodesize, myfile);
-	// 		if(ferror(myfile)) {
-	// 			perror("Could not write node");
-	// 			goto out;
-	// 		}
-	// 		fclose(myfile);
-	// 	}
-	// }
+static int scan_one_device_with_offsets(void *dev_scan_struct)
+{
+	struct extent_buffer *buf;
+	u64 bytenr;
+	int ret = 0;
+	struct device_scan *dev_scan = (struct device_scan *)dev_scan_struct;
+	struct recover_control *rc = dev_scan->rc;
+	struct btrfs_device *device = dev_scan->dev;
+	int fd = dev_scan->fd;
+	int oldtype;
+
+
+	ret = pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+	if (ret)
+		return 1;
+
+	buf = malloc(sizeof(*buf) + rc->nodesize);
+	if (!buf)
+		return -ENOMEM;
+	buf->len = rc->nodesize;
+
+	FILE *offsets_file = {};	
+	if(rc->load_offsets) {
+		size_t dirlen = strlen(rc->offset_file_dir);
+		char * fnbuf = (char*) calloc(dirlen+100, sizeof(char));
+		snprintf(fnbuf, dirlen+100, "%s/offsets-%LX", rc->offset_file_dir, device->devid);
+		offsets_file = fopen(fnbuf, "rb");
+		if (!offsets_file) {
+			perror("Could not open offset file");
+			goto out;
+		}
+		// size_t fsz = 0;
+		// fseek(offsets_file, 0, SEEK_END);
+		// fsz = ftell(offsets_file);
+		// fseek(offsets_file, 0, SEEK_SET);
+		// printf("File %s contains %ld offsets\n", fnbuf, fsz/8);
+		free(fnbuf);
+	}
+
+	u64 offset_buf;
+	bytenr = 0;
+	while (sizeof(u64) == fread(&offset_buf, 1, sizeof(u64), offsets_file)) {
+		dev_scan->bytenr = offset_buf;
+		bytenr = offset_buf;
+		if (pread(fd, buf->data, rc->nodesize, bytenr) <
+		    rc->nodesize)
+			break;
+
+		if (is_super_block_address(bytenr))
+			// bytenr += rc->sectorsize;
+
+		if (pread(fd, buf->data, rc->nodesize, bytenr) <
+		    rc->nodesize)
+			break;
+
+		if (memcmp_extent_buffer(buf, rc->fs_devices->metadata_uuid,
+					 btrfs_header_fsid(),
+					 BTRFS_FSID_SIZE)) {
+			// bytenr += rc->sectorsize;
+			continue;
+		}
+
+		if (verify_tree_block_csum_silent(buf, rc->csum_size,
+						  rc->csum_type)) {
+			// bytenr += rc->sectorsize;
+			continue;
+		}
+		if(rc->dump) {
+			fwrite(&bytenr, sizeof(bytenr), 1, offsets_file);
+			if(ferror(offsets_file)) {
+				perror("Could not write node offset");
+				goto out;
+			}
+		}
+		pthread_mutex_lock(&rc->rc_lock);
+		ret = process_extent_buffer(&rc->eb_cache, buf, device, bytenr);
+		pthread_mutex_unlock(&rc->rc_lock);
+		if (ret)
+			goto out;
+
+		if (btrfs_header_level(buf) != 0)
+			goto next_node;
+
+		switch (btrfs_header_owner(buf)) {
+		case BTRFS_EXTENT_TREE_OBJECTID:
+		case BTRFS_DEV_TREE_OBJECTID:
+			/* different tree use different generation */
+			if (btrfs_header_generation(buf) > rc->generation)
+				break;
+			ret = extract_metadata_record(rc, buf);
+			if (ret)
+				goto out;
+			break;
+		case BTRFS_CHUNK_TREE_OBJECTID:
+			if (btrfs_header_generation(buf) >
+			    rc->chunk_root_generation)
+				break;
+			ret = extract_metadata_record(rc, buf);
+			if (ret)
+				goto out;
+			break;
+		}
+next_node:
+		{}
+		// bytenr += rc->nodesize;
+	}
+out:
 	if(rc->dump) {
 		if(offsets_file) {
 			fclose(offsets_file);
@@ -912,14 +1017,28 @@ static int scan_devices(struct recover_control *rc)
 		devidx++;
 	}
 
-	for (i = 0; i < devidx; i++) {
-		ret = pthread_create(&t_scans[i], NULL,
-				     (void *)scan_one_device,
-				     (void *)&dev_scans[i]);
-		if (ret)
-			goto out1;
+	if(!(rc->load_offsets)) {
+		// normal case, not loading node offsets from files
+		for (i = 0; i < devidx; i++) {
+			ret = pthread_create(&t_scans[i], NULL,
+						(void *)scan_one_device,
+						(void *)&dev_scans[i]);
+			if (ret)
+				goto out1;
 
-		dev_scans[i].bytenr = 0;
+			dev_scans[i].bytenr = 0;
+		}
+	} else {
+		// load offsets from file
+		for (i = 0; i < devidx; i++) {
+			ret = pthread_create(&t_scans[i], NULL,
+						(void *)scan_one_device_with_offsets,
+						(void *)&dev_scans[i]);
+			if (ret)
+				goto out1;
+
+			dev_scans[i].bytenr = 0;
+		}
 	}
 
 	while (1) {
@@ -2344,98 +2463,100 @@ static void validate_rebuild_chunks(struct recover_control *rc)
 /*
  * Return 0 when successful, < 0 on error and > 0 if aborted by user
  */
-int btrfs_recover_chunk_tree(const char *path, int yes)
-{
-	int ret = 0;
-	struct btrfs_root *root = NULL;
-	struct btrfs_trans_handle *trans;
-	struct recover_control rc;
+int btrfs_recover_chunk_tree(const char *path, int yes, int dump,
+                             int load_offsets, char *offset_file_dir) {
+  int ret = 0;
+  struct btrfs_root *root = NULL;
+  struct btrfs_trans_handle *trans;
+  struct recover_control rc;
 
-	init_recover_control(&rc, yes);
+  init_recover_control(&rc, yes, dump, load_offsets, offset_file_dir);
 
-	ret = recover_prepare(&rc, path);
-	if (ret) {
-		fprintf(stderr, "recover prepare error\n");
-		return ret;
-	}
+  ret = recover_prepare(&rc, path);
+  if (ret) {
+    fprintf(stderr, "recover prepare error\n");
+    return ret;
+  }
 
-	ret = scan_devices(&rc);
-	if (ret) {
-		fprintf(stderr, "scan chunk headers error\n");
-		goto fail_rc;
-	}
+  ret = scan_devices(&rc);
+  if (ret) {
+    fprintf(stderr, "scan chunk headers error\n");
+    goto fail_rc;
+  }
 
-	if (cache_tree_empty(&rc.chunk) &&
-	    cache_tree_empty(&rc.bg.tree) &&
-	    cache_tree_empty(&rc.devext.tree)) {
-		fprintf(stderr, "no recoverable chunk\n");
-		goto fail_rc;
-	}
+  if (cache_tree_empty(&rc.chunk) && cache_tree_empty(&rc.bg.tree) &&
+      cache_tree_empty(&rc.devext.tree)) {
+    fprintf(stderr, "no recoverable chunk\n");
+    goto fail_rc;
+  }
 
-	print_scan_result(&rc);
+  print_scan_result(&rc);
 
-	ret = check_chunks(&rc.chunk, &rc.bg, &rc.devext, &rc.good_chunks,
-			   &rc.bad_chunks, &rc.rebuild_chunks, 1);
-	if (ret) {
-		if (!list_empty(&rc.bg.block_groups) ||
-		    !list_empty(&rc.devext.no_chunk_orphans)) {
-			ret = btrfs_recover_chunks(&rc);
-			if (ret)
-				goto fail_rc;
-		}
-	} else {
-		print_check_result(&rc);
-		printf("Check chunks successfully with no orphans\n");
-		goto fail_rc;
-	}
-	validate_rebuild_chunks(&rc);
-	print_check_result(&rc);
+  ret = check_chunks(&rc.chunk, &rc.bg, &rc.devext, &rc.good_chunks,
+                     &rc.bad_chunks, &rc.rebuild_chunks, 1);
+  if (ret) {
+    if (!list_empty(&rc.bg.block_groups) ||
+        !list_empty(&rc.devext.no_chunk_orphans)) {
+      ret = btrfs_recover_chunks(&rc);
+      if (ret)
+        goto fail_rc;
+    }
+  } else {
+    print_check_result(&rc);
+    printf("Check chunks successfully with no orphans\n");
+    goto fail_rc;
+  }
+  validate_rebuild_chunks(&rc);
+  print_check_result(&rc);
 
-	root = open_ctree_with_broken_chunk(&rc);
-	if (IS_ERR(root)) {
-		fprintf(stderr, "open with broken chunk error\n");
-		ret = PTR_ERR(root);
-		goto fail_rc;
-	}
+  root = open_ctree_with_broken_chunk(&rc);
+  if (IS_ERR(root)) {
+    fprintf(stderr, "open with broken chunk error\n");
+    ret = PTR_ERR(root);
+    goto fail_rc;
+  }
 
-	ret = check_all_chunks_by_metadata(&rc, root);
-	if (ret) {
-		fprintf(stderr, "The chunks in memory can not match the metadata of the fs. Repair failed.\n");
-		goto fail_close_ctree;
-	}
+  ret = check_all_chunks_by_metadata(&rc, root);
+  if (ret) {
+    fprintf(stderr, "The chunks in memory can not match the metadata of the "
+                    "fs. Repair failed.\n");
+    goto fail_close_ctree;
+  }
 
-	ret = btrfs_rebuild_ordered_data_chunk_stripes(&rc, root);
-	if (ret) {
-		fprintf(stderr, "Failed to rebuild ordered chunk stripes.\n");
-		goto fail_close_ctree;
-	}
+  ret = btrfs_rebuild_ordered_data_chunk_stripes(&rc, root);
+  if (ret) {
+    fprintf(stderr, "Failed to rebuild ordered chunk stripes.\n");
+    goto fail_close_ctree;
+  }
 
-	if (!rc.yes) {
-		ret = ask_user("We are going to rebuild the chunk tree on disk, it might destroy the old metadata on the disk, Are you sure?");
-		if (!ret) {
-			ret = 1;
-			goto fail_close_ctree;
-		}
-	}
+  if (!rc.yes) {
+    ret = ask_user("We are going to rebuild the chunk tree on disk, it might "
+                   "destroy the old metadata on the disk, Are you sure?");
+    if (!ret) {
+      ret = 1;
+      goto fail_close_ctree;
+    }
+  }
 
-	trans = btrfs_start_transaction(root, 1);
-	BUG_ON(IS_ERR(trans));
-	ret = remove_chunk_extent_item(trans, &rc, root);
-	BUG_ON(ret);
+  trans = btrfs_start_transaction(root, 1);
+  BUG_ON(IS_ERR(trans));
+  ret = remove_chunk_extent_item(trans, &rc, root);
+  BUG_ON(ret);
 
-	ret = rebuild_chunk_tree(trans, &rc, root);
-	BUG_ON(ret);
+  ret = rebuild_chunk_tree(trans, &rc, root);
+  BUG_ON(ret);
 
-	ret = rebuild_sys_array(&rc, root);
-	BUG_ON(ret);
+  ret = rebuild_sys_array(&rc, root);
+  BUG_ON(ret);
 
-	ret = rebuild_block_group(trans, &rc, root);
-	if (ret) {
-		printf("Fail to rebuild block groups.\n");
-		printf("Recommend to run 'btrfs check --init-extent-tree <dev>' after recovery\n");
-	}
+  ret = rebuild_block_group(trans, &rc, root);
+  if (ret) {
+    printf("Fail to rebuild block groups.\n");
+    printf("Recommend to run 'btrfs check --init-extent-tree <dev>' after "
+           "recovery\n");
+  }
 
-	btrfs_commit_transaction(trans, root);
+  btrfs_commit_transaction(trans, root);
 fail_close_ctree:
 	close_ctree(root);
 fail_rc:

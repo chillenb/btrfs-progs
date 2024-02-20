@@ -62,7 +62,9 @@ static int cmd_rescue_chunk_recover(const struct cmd_struct *cmd,
 	int ret = 0;
 	char *file;
 	bool yes = false;
-	bconf.dump = 0;
+	int dump = 0;
+	int load_offsets = 0;
+	char *offset_files_dir = NULL;
 
 	/* If verbose is unset, set it to 0 */
 	if (bconf.verbose == BTRFS_BCONF_UNSET)
@@ -70,7 +72,7 @@ static int cmd_rescue_chunk_recover(const struct cmd_struct *cmd,
 
 	optind = 0;
 	while (1) {
-		int c = getopt(argc, argv, "yvhd");
+		int c = getopt(argc, argv, "yvhdl:");
 		if (c < 0)
 			break;
 		switch (c) {
@@ -81,7 +83,11 @@ static int cmd_rescue_chunk_recover(const struct cmd_struct *cmd,
 			bconf.verbose++;
 			break;
 		case 'd':
-			bconf.dump = 1;
+			dump = 1;
+			break;
+		case 'l':
+			load_offsets = 1;
+			offset_files_dir = optarg;
 			break;
 		default:
 			usage_unknown_option(cmd, argv);
@@ -103,16 +109,17 @@ static int cmd_rescue_chunk_recover(const struct cmd_struct *cmd,
 		return 1;
 	}
 
-	ret = btrfs_recover_chunk_tree(file, yes);
-	if (!ret) {
-		pr_verbose(LOG_DEFAULT, "Chunk tree recovered successfully\n");
-	} else if (ret > 0) {
-		ret = 0;
-		pr_verbose(LOG_DEFAULT, "Chunk tree recovery aborted\n");
-	} else {
-		pr_verbose(LOG_DEFAULT, "Chunk tree recovery failed\n");
-	}
-	return ret;
+        ret = btrfs_recover_chunk_tree(file, yes, dump, load_offsets,
+                                       offset_files_dir);
+        if (!ret) {
+          pr_verbose(LOG_DEFAULT, "Chunk tree recovered successfully\n");
+        } else if (ret > 0) {
+          ret = 0;
+          pr_verbose(LOG_DEFAULT, "Chunk tree recovery aborted\n");
+        } else {
+          pr_verbose(LOG_DEFAULT, "Chunk tree recovery failed\n");
+        }
+        return ret;
 }
 static DEFINE_SIMPLE_COMMAND(rescue_chunk_recover, "chunk-recover");
 
