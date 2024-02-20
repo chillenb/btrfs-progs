@@ -50,6 +50,7 @@ static const char * const cmd_rescue_chunk_recover_usage[] = {
 	OPTLINE("-y", "assume an answer of `yes' to all questions"),
 	OPTLINE("-h", "help"),
 	OPTLINE("-v", "deprecated, alias for global -v option"),
+	OPTLINE("-d", "dump scanned metadata"),
 	HELPINFO_INSERT_GLOBALS,
 	HELPINFO_INSERT_VERBOSE,
 	NULL
@@ -61,6 +62,7 @@ static int cmd_rescue_chunk_recover(const struct cmd_struct *cmd,
 	int ret = 0;
 	char *file;
 	bool yes = false;
+	bconf.dump = 0;
 
 	/* If verbose is unset, set it to 0 */
 	if (bconf.verbose == BTRFS_BCONF_UNSET)
@@ -68,7 +70,7 @@ static int cmd_rescue_chunk_recover(const struct cmd_struct *cmd,
 
 	optind = 0;
 	while (1) {
-		int c = getopt(argc, argv, "yvh");
+		int c = getopt(argc, argv, "yvhd");
 		if (c < 0)
 			break;
 		switch (c) {
@@ -77,6 +79,9 @@ static int cmd_rescue_chunk_recover(const struct cmd_struct *cmd,
 			break;
 		case 'v':
 			bconf.verbose++;
+			break;
+		case 'd':
+			bconf.dump = 1;
 			break;
 		default:
 			usage_unknown_option(cmd, argv);

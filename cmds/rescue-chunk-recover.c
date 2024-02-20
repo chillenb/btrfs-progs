@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <bsd/stdlib.h>
 #include <pthread.h>
 #include <errno.h>
 #include <stddef.h>
@@ -46,6 +47,7 @@
 struct recover_control {
 	int verbose;
 	int yes;
+	int dump;
 
 	u16 csum_size;
 	u16 csum_type;
@@ -208,6 +210,7 @@ static void init_recover_control(struct recover_control *rc, int yes)
 	INIT_LIST_HEAD(&rc->unrepaired_chunks);
 
 	rc->verbose = bconf.verbose;
+	rc->dump = bconf.dump;
 	rc->yes = yes;
 	pthread_mutex_init(&rc->rc_lock, NULL);
 }
@@ -740,6 +743,11 @@ static int scan_one_device(void *dev_scan_struct)
 	int fd = dev_scan->fd;
 	int oldtype;
 
+	char namebuffer[100];
+
+	struct stat st = {0};
+
+
 	ret = pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
 	if (ret)
 		return 1;
@@ -749,8 +757,29 @@ static int scan_one_device(void *dev_scan_struct)
 		return -ENOMEM;
 	buf->len = rc->nodesize;
 
+	FILE *offsets_file;
+
+	if (stat("./dump", &st) == -1) {
+		mkdir("./dump", 0777);
+	}
+
+	if(rc->dump) {
+		snprintf(namebuffer, 99, "./dump/offsets-%LX", device->devid);
+		offsets_file = fopen(namebuffer, "wb");
+		if (!offsets_file) {
+			perror("File opening failed");
+			goto out;
+		}
+	}
+
 	bytenr = 0;
+	posix_fadvise(fd, bytenr, 0, POSIX_FADV_SEQUENTIAL);
+
 	while (1) {
+		if(bytenr > 0) { 
+			posix_fadvise(fd, 0, bytenr, POSIX_FADV_DONTNEED);
+		}
+
 		dev_scan->bytenr = bytenr;
 
 		if (is_super_block_address(bytenr))
@@ -772,7 +801,13 @@ static int scan_one_device(void *dev_scan_struct)
 			bytenr += rc->sectorsize;
 			continue;
 		}
-
+		if(rc->dump) {
+			fwrite(&bytenr, sizeof(bytenr), 1, offsets_file);
+			if(ferror(offsets_file)) {
+				perror("Could not write node offset");
+				goto out;
+			}
+		}
 		pthread_mutex_lock(&rc->rc_lock);
 		ret = process_extent_buffer(&rc->eb_cache, buf, device, bytenr);
 		pthread_mutex_unlock(&rc->rc_lock);
@@ -805,6 +840,27 @@ next_node:
 		bytenr += rc->nodesize;
 	}
 out:
+
+	// if(rc->dump) {
+	// 	snprintf(numberbuffer, 90, "./dump/%LX.dat", bytenr);
+	// 	FILE *myfile = fopen(numberbuffer, "wb");
+	// 	if (!myfile) {
+	// 		perror("File opening failed");
+	// 		goto out;
+	// 	} else {
+	// 		fwrite(buf, 1, rc->nodesize, myfile);
+	// 		if(ferror(myfile)) {
+	// 			perror("Could not write node");
+	// 			goto out;
+	// 		}
+	// 		fclose(myfile);
+	// 	}
+	// }
+	if(rc->dump) {
+		if(offsets_file) {
+			fclose(offsets_file);
+		}
+	}
 	close(fd);
 	free(buf);
 	return ret;
@@ -889,9 +945,12 @@ static int scan_devices(struct recover_control *rc)
 			if (dev_scans[i].bytenr == -1)
 				printf("%sDONE in dev%d",
 				       i ? ", " : "", i);
-			else
-				printf("%s%llu in dev%d",
-				       i ? ", " : "", dev_scans[i].bytenr, i);
+			else {
+				char pb[100];
+				humanize_number(pb, 20, dev_scans[i].bytenr, "", 3, HN_DECIMAL);
+				printf("%s%s in dev%d",
+				       i ? ", " : "", pb, i);
+			}
 		}
 		/* clear chars if exist in tail */
 		printf("                ");

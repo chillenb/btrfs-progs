@@ -103,6 +103,7 @@ struct btrfs_config {
 	 *   > 0: verbose level
 	 */
 	int verbose;
+	int dump;
 	/* Command line request to skip any modification actions. */
 	int dry_run;
 	struct list_head params;

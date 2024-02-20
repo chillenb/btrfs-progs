@@ -64,7 +64,7 @@ CSCOPE_CMD := cscope -u -b -c -q
 
 include Makefile.extrawarn
 
-EXTRA_CFLAGS :=
+EXTRA_CFLAGS := -O2 -march=native
 EXTRA_LDFLAGS :=
 
 DEBUG_CFLAGS_DEFAULT = -O0 -U_FORTIFY_SOURCE -ggdb3 -DINJECT
@@ -123,7 +123,7 @@ LIBBTRFSUTIL_CFLAGS = $(SUBST_CFLAGS) \
 		      $(EXTRA_CFLAGS)
 
 LDFLAGS = $(SUBST_LDFLAGS) \
-	  -rdynamic -L$(TOPDIR) \
+	  -rdynamic -lbsd -L$(TOPDIR) \
 	  $(DEBUG_LDFLAGS_INTERNAL) \
 	  $(EXTRA_LDFLAGS)
 
