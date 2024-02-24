@@ -1329,13 +1329,13 @@ static void print_header_info(struct extent_buffer *eb, unsigned int mode)
 
 	if (btrfs_header_level(eb))
 		printf(
-	"node %llu level %d items %u free space %u generation %llu owner ",
+	"node %llX level %d items %u free space %u generation %llX owner ",
 		       (unsigned long long)eb->start, btrfs_header_level(eb),
 		       nr, (u32)BTRFS_NODEPTRS_PER_EXTENT_BUFFER(eb) - nr,
 		       (unsigned long long)btrfs_header_generation(eb));
 	else
 		printf(
-	"leaf %llu items %u free space %d generation %llu owner ",
+	"leaf %llX items %u free space %d generation %llX owner ",
 		       (unsigned long long)btrfs_header_bytenr(eb), nr,
 		       btrfs_leaf_free_space(eb),
 		       (unsigned long long)btrfs_header_generation(eb));

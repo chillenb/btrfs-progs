@@ -92,7 +92,7 @@ static void generic_err(const struct extent_buffer *eb, int slot,
 	vaf.va = &args;
 
 	btrfs_crit(fs_info,
-		"corrupt %s: root=%llu block=%llu slot=%d, %pV",
+		"corrupt %s: root=%llX block=%llX slot=%d, %pV",
 		btrfs_header_level(eb) == 0 ? "leaf" : "node",
 		btrfs_header_owner(eb), btrfs_header_bytenr(eb), slot, &vaf);
 	va_end(args);
@@ -121,7 +121,7 @@ static void file_extent_err(const struct extent_buffer *eb, int slot,
 	vaf.va = &args;
 
 	btrfs_crit(fs_info,
-	"corrupt %s: root=%llu block=%llu slot=%d ino=%llu file_offset=%llu, %pV",
+	"corrupt %s: root=%llX block=%llX slot=%d ino=%llX file_offset=%llX, %pV",
 		btrfs_header_level(eb) == 0 ? "leaf" : "node",
 		btrfs_header_owner(eb), btrfs_header_bytenr(eb), slot,
 		key.objectid, key.offset, &vaf);
@@ -183,7 +183,7 @@ static void dir_item_err(const struct extent_buffer *eb, int slot,
 	vaf.va = &args;
 
 	btrfs_crit(fs_info,
-		"corrupt %s: root=%llu block=%llu slot=%d ino=%llu, %pV",
+		"corrupt %s: root=%llX block=%llX slot=%d ino=%llX, %pV",
 		btrfs_header_level(eb) == 0 ? "leaf" : "node",
 		btrfs_header_owner(eb), btrfs_header_bytenr(eb), slot,
 		key.objectid, &vaf);
@@ -685,7 +685,7 @@ static void block_group_err(const struct extent_buffer *eb, int slot,
 	vaf.va = &args;
 
 	btrfs_crit(fs_info,
-	"corrupt %s: root=%llu block=%llu slot=%d bg_start=%llu bg_len=%llu, %pV",
+	"corrupt %s: root=%llX block=%llX slot=%d bg_start=%llX bg_len=%llX, %pV",
 		btrfs_header_level(eb) == 0 ? "leaf" : "node",
 		btrfs_header_owner(eb), btrfs_header_bytenr(eb), slot,
 		key.objectid, key.offset, &vaf);
@@ -815,11 +815,11 @@ static void chunk_err(const struct extent_buffer *leaf,
 
 	if (is_sb)
 		btrfs_crit(fs_info,
-		"corrupt superblock syschunk array: chunk_start=%llu, %pV",
+		"corrupt superblock syschunk array: chunk_start=%llX, %pV",
 			   logical, &vaf);
 	else
 		btrfs_crit(fs_info,
-	"corrupt leaf: root=%llu block=%llu slot=%d chunk_start=%llu, %pV",
+	"corrupt leaf: root=%llX block=%llX slot=%d chunk_start=%llX, %pV",
 			   BTRFS_CHUNK_TREE_OBJECTID, leaf->start, slot,
 			   logical, &vaf);
 	va_end(args);
@@ -1045,7 +1045,7 @@ static void dev_item_err(const struct extent_buffer *eb, int slot,
 	vaf.va = &args;
 
 	btrfs_crit(eb->fs_info,
-	"corrupt %s: root=%llu block=%llu slot=%d devid=%llu %pV",
+	"corrupt %s: root=%llX block=%llX slot=%d devid=%llX %pV",
 		btrfs_header_level(eb) == 0 ? "leaf" : "node",
 		btrfs_header_owner(eb), btrfs_header_bytenr(eb), slot,
 		key.objectid, &vaf);
@@ -1302,7 +1302,7 @@ static void extent_err(const struct extent_buffer *eb, int slot,
 	vaf.va = &args;
 
 	btrfs_crit(eb->fs_info,
-	"corrupt %s: block=%llu slot=%d extent bytenr=%llu len=%llu %pV",
+	"corrupt %s: block=%llX slot=%d extent bytenr=%llX len=%llX %pV",
 		btrfs_header_level(eb) == 0 ? "leaf" : "node",
 		eb->start, slot, bytenr, len, &vaf);
 	va_end(args);
@@ -2019,10 +2019,11 @@ enum btrfs_tree_block_status __btrfs_check_node(struct extent_buffer *node)
 	}
 	if (unlikely(nr == 0 || nr > BTRFS_NODEPTRS_PER_BLOCK(fs_info))) {
 		btrfs_crit(fs_info,
-"corrupt node: root=%llu block=%llu, nritems too %s, have %lu expect range [1,%u]",
+"corrupt node: root=%llX block=%lX, nritems too %s, have %lu expect range [1,%u]",
 			   btrfs_header_owner(node), node->start,
 			   nr == 0 ? "small" : "large", nr,
 			   BTRFS_NODEPTRS_PER_BLOCK(fs_info));
+		printf("leaf data size %d at %d in %s\n", fs_info->leaf_data_size, __LINE__, __FILE__);
 		return BTRFS_TREE_BLOCK_INVALID_NRITEMS;
 	}
 
@@ -2102,7 +2103,7 @@ int btrfs_check_eb_owner(const struct extent_buffer *eb, u64 root_owner)
 		/* For non-subvolume trees, the eb owner should match root owner */
 		if (unlikely(root_owner != eb_owner)) {
 			btrfs_crit(eb->fs_info,
-"corrupted %s, root=%llu block=%llu owner mismatch, have %llu expect %llu",
+"corrupted %s, root=%llX block=%llX owner mismatch, have %llX expect %llX",
 				btrfs_header_level(eb) == 0 ? "leaf" : "node",
 				root_owner, btrfs_header_bytenr(eb), eb_owner,
 				root_owner);
@@ -2117,7 +2118,7 @@ int btrfs_check_eb_owner(const struct extent_buffer *eb, u64 root_owner)
 	 */
 	if (unlikely(is_subvol != is_fstree(eb_owner))) {
 		btrfs_crit(eb->fs_info,
-"corrupted %s, root=%llu block=%llu owner mismatch, have %llu expect [%llu, %llu]",
+"corrupted %s, root=%llX block=%llX owner mismatch, have %llX expect [%llX, %llX]",
 			btrfs_header_level(eb) == 0 ? "leaf" : "node",
 			root_owner, btrfs_header_bytenr(eb), eb_owner,
 			BTRFS_FIRST_FREE_OBJECTID, BTRFS_LAST_FREE_OBJECTID);

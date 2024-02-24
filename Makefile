@@ -123,7 +123,7 @@ LIBBTRFSUTIL_CFLAGS = $(SUBST_CFLAGS) \
 		      $(EXTRA_CFLAGS)
 
 LDFLAGS = $(SUBST_LDFLAGS) \
-	  -rdynamic -lbsd -L$(TOPDIR) \
+	  -rdynamic -L$(TOPDIR) \
 	  $(DEBUG_LDFLAGS_INTERNAL) \
 	  $(EXTRA_LDFLAGS)
 
@@ -207,6 +207,7 @@ objects = \
 	common/format-output.o	\
 	common/fsfeatures.o	\
 	common/help.o	\
+	common/humanize_number.o  \
 	common/inject-error.o	\
 	common/messages.o	\
 	common/open-utils.o	\

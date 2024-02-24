@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <bsd/stdlib.h>
 #include <pthread.h>
 #include <errno.h>
 #include <stddef.h>
@@ -41,6 +40,7 @@
 #include "common/messages.h"
 #include "common/extent-cache.h"
 #include "common/utils.h"
+#include "common/humanize_number.h"
 #include "cmds/rescue.h"
 #include "check/common.h"
 
@@ -378,7 +378,7 @@ static void print_block_group_info(struct block_group_record *rec, char *prefix)
 {
 	if (prefix)
 		printf("%s", prefix);
-	printf("Block Group: start = %llu, len = %llu, flag = %llx\n",
+	printf("Block Group: start = %llX, len = %llX, flag = %llx\n",
 	       rec->objectid, rec->offset, rec->flags);
 }
 
@@ -403,7 +403,7 @@ static void print_stripe_info(struct stripe *data, char *prefix1, char *prefix2,
 		printf("%s", prefix1);
 	if (prefix2)
 		printf("%s", prefix2);
-	printf("[%2d] Stripe: devid = %llu, offset = %llu\n",
+	printf("[%2d] Stripe: devid = %llu, offset = %llX\n",
 	       index, data->devid, data->offset);
 }
 
@@ -413,7 +413,7 @@ static void print_chunk_self_info(struct chunk_record *rec, char *prefix)
 
 	if (prefix)
 		printf("%s", prefix);
-	printf("Chunk: start = %llu, len = %llu, type = %llx, num_stripes = %u\n",
+	printf("Chunk: start = %llX, len = %llX, type = %llx, num_stripes = %u\n",
 	       rec->offset, rec->length, rec->type_flags, rec->num_stripes);
 	if (prefix)
 		printf("%s", prefix);
@@ -441,7 +441,7 @@ static void print_device_extent_info(struct device_extent_record *rec,
 {
 	if (prefix)
 		printf("%s", prefix);
-	printf("Device extent: devid = %llu, start = %8LX, len = %8LX, chunk offset = %8LX\n",
+	printf("Device extent: devid = %llu, start = %llX, len = %llX, chunk offset = %llX\n",
 	       rec->objectid, rec->offset, rec->length, rec->chunk_offset);
 }
 
@@ -632,7 +632,7 @@ bg_check:
 		return ret;
 	} else if (ret > 0) {
 		if (rc->verbose)
-			fprintf(stderr, "No block group[%8LX, %8LX]\n",
+			fprintf(stderr, "No block group[%llX, %llX]\n",
 				key.objectid, key.offset);
 		btrfs_release_path(&path);
 		return -ENOENT;
@@ -1325,8 +1325,12 @@ static int __rebuild_chunk_root(struct btrfs_trans_handle *trans,
 	btrfs_set_disk_key_type(&disk_key, BTRFS_DEV_ITEM_KEY);
 	btrfs_set_disk_key_offset(&disk_key, min_devid);
 
+
+
 	cow = btrfs_alloc_tree_block(trans, root, 0, BTRFS_CHUNK_TREE_OBJECTID,
 				     &disk_key, 0, 0, 0, BTRFS_NESTING_NORMAL);
+
+
 	btrfs_set_header_bytenr(cow, cow->start);
 	btrfs_set_header_generation(cow, trans->transid);
 	btrfs_set_header_nritems(cow, 0);
@@ -1342,6 +1346,8 @@ static int __rebuild_chunk_root(struct btrfs_trans_handle *trans,
 
 	root->node = cow;
 	btrfs_mark_buffer_dirty(cow);
+
+
 
 	return ret;
 }
@@ -1372,6 +1378,9 @@ static int __rebuild_device_items(struct btrfs_trans_handle *trans,
 		memcpy(dev_item->uuid, dev->uuid, BTRFS_UUID_SIZE);
 		memcpy(dev_item->fsid, dev->fs_devices->metadata_uuid,
 		       BTRFS_FSID_SIZE);
+
+		printf("REBUILDING CHUNK ROOT, line %d in %s\n", __LINE__, __FILE__);
+
 
 		ret = btrfs_insert_item(trans, root, &key,
 					dev_item, sizeof(*dev_item));
@@ -1436,9 +1445,14 @@ static int rebuild_chunk_tree(struct btrfs_trans_handle *trans,
 	if (ret)
 		return ret;
 
+	printf("REBUILDING DEVICE ITEMS, line %d in %s\n", __LINE__, __FILE__);
+
 	ret = __rebuild_device_items(trans, rc, root);
 	if (ret)
 		return ret;
+
+	printf("REBUILDING CHUNK ITEMS, line %d in %s\n", __LINE__, __FILE__);
+
 
 	ret = __rebuild_chunk_items(trans, rc, root);
 
@@ -1636,6 +1650,7 @@ open_ctree_with_broken_chunk(struct recover_control *rc)
 	fs_info->sectorsize = btrfs_super_sectorsize(disk_super);
 	fs_info->nodesize = btrfs_super_nodesize(disk_super);
 	fs_info->stripesize = btrfs_super_stripesize(disk_super);
+	fs_info->leaf_data_size = __BTRFS_LEAF_DATA_SIZE(fs_info->nodesize);
 
 	ret = btrfs_check_fs_compatibility(disk_super, OPEN_CTREE_WRITES);
 	if (ret)
@@ -1655,6 +1670,7 @@ open_ctree_with_broken_chunk(struct recover_control *rc)
 	if (ret)
 		goto out_cleanup;
 
+    printf("Setting up all roots. File %s, line %d\n", __FILE__, __LINE__);
 	ret = btrfs_setup_all_roots(fs_info, 0, 0);
 	if (ret)
 		goto out_failed;
@@ -1700,6 +1716,7 @@ static int recover_prepare(struct recover_control *rc, const char *path)
 	rc->sectorsize = btrfs_super_sectorsize(&sb);
 	rc->nodesize = btrfs_super_nodesize(&sb);
 	rc->generation = btrfs_super_generation(&sb);
+	rc->generation = 270017;
 	rc->chunk_root_generation = btrfs_super_chunk_root_generation(&sb);
 	rc->csum_size = btrfs_super_csum_size(&sb);
 	rc->csum_type = btrfs_super_csum_type(&sb);
@@ -2509,6 +2526,8 @@ int btrfs_recover_chunk_tree(const char *path, int yes, int dump,
   validate_rebuild_chunks(&rc);
   print_check_result(&rc);
 
+
+  printf("Opening ctree. Line %d\n", __LINE__);
   root = open_ctree_with_broken_chunk(&rc);
   if (IS_ERR(root)) {
     fprintf(stderr, "open with broken chunk error\n");
@@ -2516,6 +2535,7 @@ int btrfs_recover_chunk_tree(const char *path, int yes, int dump,
     goto fail_rc;
   }
 
+  printf("Checking chunks by metadata. Line %d\n", __LINE__);
   ret = check_all_chunks_by_metadata(&rc, root);
   if (ret) {
     fprintf(stderr, "The chunks in memory can not match the metadata of the "
@@ -2523,6 +2543,7 @@ int btrfs_recover_chunk_tree(const char *path, int yes, int dump,
     goto fail_close_ctree;
   }
 
+  printf("Rebuilding chunk tree. Line %d\n", __LINE__);
   ret = btrfs_rebuild_ordered_data_chunk_stripes(&rc, root);
   if (ret) {
     fprintf(stderr, "Failed to rebuild ordered chunk stripes.\n");

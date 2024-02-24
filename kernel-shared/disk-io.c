@@ -1593,6 +1593,7 @@ static struct btrfs_fs_info *__open_ctree_fd(int fp, struct open_ctree_args *oca
 	fs_info->csum_type = btrfs_super_csum_type(disk_super);
 	fs_info->csum_size = btrfs_super_csum_size(disk_super);
 	fs_info->leaf_data_size = __BTRFS_LEAF_DATA_SIZE(fs_info->nodesize);
+	printf("leaf data size %u at %d in %s\n", fs_info->leaf_data_size, __LINE__, __FILE__);
 
 	ret = btrfs_check_fs_compatibility(fs_info->super_copy, flags);
 	if (ret)
@@ -1775,6 +1776,7 @@ int btrfs_check_super(struct btrfs_super_block *sb, unsigned sbflags)
 
 	if (memcmp(result, sb->csum, csum_size)) {
 		error("superblock checksum mismatch");
+		error("wanted: %llX, got %llX", *( (u64*)  sb->csum), *( (u64*) result));
 		return -EIO;
 	}
 	if (btrfs_super_root_level(sb) >= BTRFS_MAX_LEVEL) {

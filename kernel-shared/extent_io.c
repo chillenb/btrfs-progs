@@ -433,7 +433,7 @@ int read_data_from_disk(struct btrfs_fs_info *info, void *buf, u64 logical,
 	ret = btrfs_map_block(info, READ, logical, &read_len, &multi, mirror,
 			      &raid_map);
 	if (ret) {
-		fprintf(stderr, "Couldn't map the block %8LX\n", logical);
+		fprintf(stderr, "Couldn't map the block %llX\n", logical);
 		return -EIO;
 	}
 	read_len = min(*len, read_len);
@@ -500,7 +500,7 @@ int write_data_to_disk(struct btrfs_fs_info *info, const void *buf, u64 offset,
 		ret = btrfs_map_block(info, WRITE, offset, &this_len, &multi,
 				      0, &raid_map);
 		if (ret) {
-			fprintf(stderr, "Couldn't map the block %8LX\n",
+			fprintf(stderr, "Couldn't map the block %llX\n",
 				offset);
 			return -EIO;
 		}
