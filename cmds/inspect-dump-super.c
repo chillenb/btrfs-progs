@@ -31,6 +31,7 @@
 #include "kernel-shared/zoned.h"
 #include "common/help.h"
 #include "common/string-utils.h"
+#include "common/utils.h"
 #include "common/messages.h"
 #include "cmds/commands.h"
 
@@ -65,16 +66,27 @@ static int load_and_dump_sb(char *filename, int fd, u64 sb_bytenr, int full,
 		if (ret == 0 && errno == 0)
 			return 0;
 
-		error("failed to read the superblock on %s at %llu read %llu/%d bytes",
-		       filename, sb_bytenr, ret, BTRFS_SUPER_INFO_SIZE);
+		if(!bconf_is_hex())
+			error("failed to read the superblock on %s at %llu read %llu/%d bytes",
+				filename, sb_bytenr, ret, BTRFS_SUPER_INFO_SIZE);
+		else
+		 	error("failed to read the superblock on %s at 0x%llx read %llu/%d bytes",
+				filename, sb_bytenr, ret, BTRFS_SUPER_INFO_SIZE);																
 		error("error = '%m', errno = %d", errno);
 		return 1;
 	}
-	pr_verbose(LOG_DEFAULT, "superblock: bytenr=%llu, device=%s\n", sb_bytenr, filename);
+	if(!bconf_is_hex())
+		pr_verbose(LOG_DEFAULT, "superblock: bytenr=%llu, device=%s\n", sb_bytenr, filename);
+	else
+		pr_verbose(LOG_DEFAULT, "superblock: bytenr=0x%llx, device=%s\n", sb_bytenr, filename);
 	pr_verbose(LOG_DEFAULT, "---------------------------------------------------------\n");
 	if (btrfs_super_magic(&sb) != BTRFS_MAGIC && !force) {
-		error("bad magic on superblock on %s at %llu (use --force to dump it anyway)",
+		if(!bconf_is_hex())
+			error("bad magic on superblock on %s at 0x%llx (use --force to dump it anyway)",
 				filename, sb_bytenr);
+		else
+			error("bad magic on superblock on %s at %llu (use --force to dump it anyway)",
+					filename, sb_bytenr);
 		return 1;
 	}
 	btrfs_print_superblock(&sb, full);

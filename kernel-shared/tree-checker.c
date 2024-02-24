@@ -15,6 +15,7 @@
  * carefully reviewed otherwise so it does not prevent mount of valid images.
  */
 
+#include "common/utils.h"
 #include "kerncompat.h"
 #include <sys/stat.h>
 #include <linux/limits.h>
@@ -1886,9 +1887,14 @@ enum btrfs_tree_block_status __btrfs_check_leaf(struct extent_buffer *leaf)
 			return BTRFS_TREE_BLOCK_CLEAN;
 
 		if (unlikely(owner == BTRFS_EXTENT_TREE_OBJECTID)) {
-			generic_err(leaf, 0,
-			"invalid root, root %llu must never be empty",
-				    owner);
+			if(!bconf_is_hex())
+				generic_err(leaf, 0,
+				"invalid root, root %llu must never be empty",
+						owner);
+			else
+				generic_err(leaf, 0,
+				"invalid root, root 0x%llx must never be empty",
+						owner);
 			return BTRFS_TREE_BLOCK_INVALID_NRITEMS;
 		}
 
@@ -1917,11 +1923,18 @@ enum btrfs_tree_block_status __btrfs_check_leaf(struct extent_buffer *leaf)
 
 		/* Make sure the keys are in the right order */
 		if (unlikely(btrfs_comp_cpu_keys(&prev_key, &key) >= 0)) {
-			generic_err(leaf, slot,
-	"bad key order, prev (%llu %u %llu) current (%llu %u %llu)",
-				prev_key.objectid, prev_key.type,
-				prev_key.offset, key.objectid, key.type,
-				key.offset);
+			if(!bconf_is_hex())
+				generic_err(leaf, slot,
+		"bad key order, prev (%llu %u %llu) current (%llu %u %llu)",
+					prev_key.objectid, prev_key.type,
+					prev_key.offset, key.objectid, key.type,
+					key.offset);
+			else
+				generic_err(leaf, slot,
+		"bad key order, prev (0x%llx 0x%x 0x%llx) current (0x%llx 0x%x 0x%llx)",
+					prev_key.objectid, prev_key.type,
+					prev_key.offset, key.objectid, key.type,
+					key.offset);
 			return BTRFS_TREE_BLOCK_BAD_KEY_ORDER;
 		}
 
@@ -2018,12 +2031,21 @@ enum btrfs_tree_block_status __btrfs_check_node(struct extent_buffer *node)
 		return BTRFS_TREE_BLOCK_INVALID_LEVEL;
 	}
 	if (unlikely(nr == 0 || nr > BTRFS_NODEPTRS_PER_BLOCK(fs_info))) {
-		btrfs_crit(fs_info,
-"corrupt node: root=%llu block=%llu, nritems too %s, have %lu expect range [1,%u]",
-			   btrfs_header_owner(node), node->start,
-			   nr == 0 ? "small" : "large", nr,
-			   BTRFS_NODEPTRS_PER_BLOCK(fs_info));
-		return BTRFS_TREE_BLOCK_INVALID_NRITEMS;
+          if (!bconf_is_hex())
+            btrfs_crit(fs_info,
+				"corrupt node: root=%llu block=%llu, nritems too %s, "
+				"have %lu expect range [1,%u]",
+				btrfs_header_owner(node), node->start,
+				nr == 0 ? "small" : "large", nr,
+				BTRFS_NODEPTRS_PER_BLOCK(fs_info));
+          else
+            btrfs_crit(fs_info,
+				"corrupt node: root=0x%llx block=0x%llx, nritems too %s, "
+				"have %lu expect range [1,%u]",
+				btrfs_header_owner(node), node->start,
+				nr == 0 ? "small" : "large", nr,
+				BTRFS_NODEPTRS_PER_BLOCK(fs_info));
+          return BTRFS_TREE_BLOCK_INVALID_NRITEMS;
 	}
 
 	for (slot = 0; slot < nr - 1; slot++) {
@@ -2037,18 +2059,30 @@ enum btrfs_tree_block_status __btrfs_check_node(struct extent_buffer *node)
 			return BTRFS_TREE_BLOCK_INVALID_BLOCKPTR;
 		}
 		if (unlikely(!IS_ALIGNED(bytenr, fs_info->sectorsize))) {
-			generic_err(node, slot,
-			"unaligned pointer, have %llu should be aligned to %u",
-				bytenr, fs_info->sectorsize);
+			if(!bconf_is_hex())
+				generic_err(node, slot,
+				"unaligned pointer, have %llu should be aligned to %u",
+					bytenr, fs_info->sectorsize);
+			else
+				generic_err(node, slot,
+				"unaligned pointer, have 0x%llx should be aligned to 0x%x",
+					bytenr, fs_info->sectorsize);
 			return BTRFS_TREE_BLOCK_INVALID_BLOCKPTR;
 		}
 
 		if (unlikely(btrfs_comp_cpu_keys(&key, &next_key) >= 0)) {
-			generic_err(node, slot,
-	"bad key order, current (%llu %u %llu) next (%llu %u %llu)",
-				key.objectid, key.type, key.offset,
-				next_key.objectid, next_key.type,
-				next_key.offset);
+			if(!bconf_is_hex())
+				generic_err(node, slot,
+				"bad key order, current (%llu %u %llu) next (%llu %u %llu)",
+					key.objectid, key.type, key.offset,
+					next_key.objectid, next_key.type,
+					next_key.offset);
+			else
+				generic_err(node, slot,
+				"bad key order, current (0x%llx 0x%x 0x%llx) next (0x%llx 0x%x 0x%llx)",
+					key.objectid, key.type, key.offset,
+					next_key.objectid, next_key.type,
+					next_key.offset);
 			return BTRFS_TREE_BLOCK_BAD_KEY_ORDER;
 		}
 	}
@@ -2101,11 +2135,18 @@ int btrfs_check_eb_owner(const struct extent_buffer *eb, u64 root_owner)
 	if (!is_subvol) {
 		/* For non-subvolume trees, the eb owner should match root owner */
 		if (unlikely(root_owner != eb_owner)) {
-			btrfs_crit(eb->fs_info,
-"corrupted %s, root=%llu block=%llu owner mismatch, have %llu expect %llu",
-				btrfs_header_level(eb) == 0 ? "leaf" : "node",
-				root_owner, btrfs_header_bytenr(eb), eb_owner,
-				root_owner);
+			if(!bconf_is_hex())
+				btrfs_crit(eb->fs_info,
+					"corrupted %s, root=%llu block=%llu owner mismatch, have %llu expect %llu",
+					btrfs_header_level(eb) == 0 ? "leaf" : "node",
+					root_owner, btrfs_header_bytenr(eb), eb_owner,
+					root_owner);
+			else
+				btrfs_crit(eb->fs_info,
+					"corrupted %s, root=0x%llx block=0x%llx owner mismatch, have 0x%llx expect 0x%llx",
+					btrfs_header_level(eb) == 0 ? "leaf" : "node",
+					root_owner, btrfs_header_bytenr(eb), eb_owner,
+					root_owner);
 			return -EUCLEAN;
 		}
 		return 0;
@@ -2116,11 +2157,18 @@ int btrfs_check_eb_owner(const struct extent_buffer *eb, u64 root_owner)
 	 * to subvolume trees.
 	 */
 	if (unlikely(is_subvol != is_fstree(eb_owner))) {
-		btrfs_crit(eb->fs_info,
-"corrupted %s, root=%llu block=%llu owner mismatch, have %llu expect [%llu, %llu]",
-			btrfs_header_level(eb) == 0 ? "leaf" : "node",
-			root_owner, btrfs_header_bytenr(eb), eb_owner,
-			BTRFS_FIRST_FREE_OBJECTID, BTRFS_LAST_FREE_OBJECTID);
+		if(!bconf_is_hex())
+			btrfs_crit(eb->fs_info,
+				"corrupted %s, root=%llu block=%llu owner mismatch, have %llu expect [%llu, %llu]",
+				btrfs_header_level(eb) == 0 ? "leaf" : "node",
+				root_owner, btrfs_header_bytenr(eb), eb_owner,
+				BTRFS_FIRST_FREE_OBJECTID, BTRFS_LAST_FREE_OBJECTID);
+		else
+			btrfs_crit(eb->fs_info,
+				"corrupted %s, root=0x%llx block=0x%llx owner mismatch, have 0x%llx expect [0x%llx, 0x%llx]",
+				btrfs_header_level(eb) == 0 ? "leaf" : "node",
+				root_owner, btrfs_header_bytenr(eb), eb_owner,
+				BTRFS_FIRST_FREE_OBJECTID, BTRFS_LAST_FREE_OBJECTID);
 		return -EUCLEAN;
 	}
 	return 0;
@@ -2138,9 +2186,14 @@ int btrfs_verify_level_key(struct extent_buffer *eb, int level,
 	if (found_level != level) {
 		WARN(IS_ENABLED(CONFIG_BTRFS_DEBUG),
 		     KERN_ERR "BTRFS: tree level check failed\n");
-		btrfs_err(fs_info,
-"tree level mismatch detected, bytenr=%llu level expected=%u has=%u",
-			  eb->start, level, found_level);
+		if(!bconf_is_hex())
+			btrfs_err(fs_info,
+				"tree level mismatch detected, bytenr=%llu level expected=%u has=%u",
+				eb->start, level, found_level);
+		else
+			btrfs_err(fs_info,
+				"tree level mismatch detected, bytenr=0x%llx level expected=%u has=%u",
+				eb->start, level, found_level);
 		return -EIO;
 	}
 
@@ -2158,9 +2211,14 @@ int btrfs_verify_level_key(struct extent_buffer *eb, int level,
 
 	/* We have @first_key, so this @eb must have at least one item */
 	if (btrfs_header_nritems(eb) == 0) {
-		btrfs_err(fs_info,
-		"invalid tree nritems, bytenr=%llu nritems=0 expect >0",
-			  eb->start);
+		if(!bconf_is_hex())
+			btrfs_err(fs_info,
+				"invalid tree nritems, bytenr=%llu nritems=0 expect >0",
+				eb->start);
+		else
+			btrfs_err(fs_info,
+				"invalid tree nritems, bytenr=0x%llx nritems=0 expect >0",
+				eb->start);
 		WARN_ON(IS_ENABLED(CONFIG_BTRFS_DEBUG));
 		return -EUCLEAN;
 	}
@@ -2174,12 +2232,20 @@ int btrfs_verify_level_key(struct extent_buffer *eb, int level,
 	if (ret) {
 		WARN(IS_ENABLED(CONFIG_BTRFS_DEBUG),
 		     KERN_ERR "BTRFS: tree first key check failed\n");
-		btrfs_err(fs_info,
+		if(!bconf_is_hex())
+			btrfs_err(fs_info,
 "tree first key mismatch detected, bytenr=%llu parent_transid=%llu key expected=(%llu,%u,%llu) has=(%llu,%u,%llu)",
-			  eb->start, parent_transid, first_key->objectid,
-			  first_key->type, first_key->offset,
-			  found_key.objectid, found_key.type,
-			  found_key.offset);
+				eb->start, parent_transid, first_key->objectid,
+				first_key->type, first_key->offset,
+				found_key.objectid, found_key.type,
+				found_key.offset);
+		else
+			btrfs_err(fs_info,
+"tree first key mismatch detected, bytenr=0x%llx parent_transid=0x%llx key expected=(0x%llx,0x%x,0x%llx) has=(0x%llx,0x%x,0x%llx)",
+				eb->start, parent_transid, first_key->objectid,
+				first_key->type, first_key->offset,
+				found_key.objectid, found_key.type,
+				found_key.offset);
 	}
 	return ret;
 }

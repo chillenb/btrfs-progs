@@ -34,6 +34,7 @@
 #include "common/help.h"
 #include "common/messages.h"
 #include "common/string-utils.h"
+#include "common/utils.h"
 #include "cmds/commands.h"
 
 /*
@@ -256,21 +257,26 @@ static void get_root_gen_and_level(u64 objectid, struct btrfs_fs_info *fs_info,
 		gen = btrfs_super_uuid_tree_generation(super);
 		break;
 	}
+	char objid_str[24];
+	if(bconf_is_hex())
+		snprintf(objid_str, sizeof(objid_str), "0x%llx", objectid);
+	else
+		snprintf(objid_str, sizeof(objid_str), "%llu", objectid);
 	if (gen != (u64)-1) {
 		printf("Superblock thinks the generation is %llu\n", gen);
 		if (ret_gen)
 			*ret_gen = gen;
 	} else {
-		printf("Superblock doesn't contain generation info for root %llu\n",
-		       objectid);
+		printf("Superblock doesn't contain generation info for root %s\n",
+		       objid_str);
 	}
 	if (level != (u8)-1) {
 		printf("Superblock thinks the level is %u\n", level);
 		if (ret_level)
 			*ret_level = level;
 	} else {
-		printf("Superblock doesn't contain the level info for root %llu\n",
-		       objectid);
+		printf("Superblock doesn't contain the level info for root %s\n",
+		       objid_str);
 	}
 }
 
@@ -282,8 +288,13 @@ static void print_one_result(struct cache_extent *tree_block,
 
 	if (filter->match_gen == (u64)-1 || filter->match_level == (u8)-1)
 		unsure = 1;
-	printf("Well block %llu(gen: %llu level: %u) seems good, ",
+	if(bconf_is_hex()) {
+		printf("Well block 0x%llx(gen: %llu level: %u) seems good, ",
+			tree_block->start, generation, level);
+	} else {
+		printf("Well block %llu(gen: %llu level: %u) seems good, ",
 	       tree_block->start, generation, level);
+	}
 	if (unsure)
 		printf("but we are unsure about the correct generation/level\n");
 	else if (level == filter->match_level &&
@@ -402,8 +413,13 @@ int BOX_MAIN(find_root)(int argc, char **argv)
 		goto out;
 	}
 	if (ret > 0) {
-		printf("Found tree root at %llu gen %llu level %u\n",
-		       found->start, filter.match_gen, filter.match_level);
+		if(bconf_is_hex()) {
+			printf("Found tree root at 0x%llx gen %llu level %u\n",
+			       found->start, filter.match_gen, filter.match_level);
+		} else {
+			printf("Found tree root at %llu gen %llu level %u\n",
+				found->start, filter.match_gen, filter.match_level);
+		}
 		ret = 0;
 	}
 	print_find_root_result(&result, &filter);

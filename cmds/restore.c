@@ -393,7 +393,10 @@ static int copy_one_extent(struct btrfs_root *root, int fd,
 		size_left -= offset;
 	}
 
-	pr_verbose(offset ? 1 : 0, "offset is %llu\n", offset);
+	if(bconf_is_hex())
+		pr_verbose(offset ? 1 : 0, "offset is 0x%llx\n", offset);
+	else
+		pr_verbose(offset ? 1 : 0, "offset is %llu\n", offset);
 
 	inbuf = malloc(size_left);
 	if (!inbuf) {
@@ -972,8 +975,12 @@ static int search_dir(struct btrfs_root *root, struct btrfs_key *key,
 		}
 		btrfs_item_key_to_cpu(leaf, &found_key, path.slots[0]);
 		if (found_key.objectid != key->objectid) {
-			pr_verbose(LOG_VERBOSE, "Found objectid=%llu, key=%llu\n",
-				   found_key.objectid, key->objectid);
+			if(!bconf_is_hex())
+				pr_verbose(LOG_VERBOSE, "Found objectid=%llu, key=%llu\n",
+					found_key.objectid, key->objectid);
+			else
+				pr_verbose(LOG_VERBOSE, "Found objectid=0x%llx, key=0x%llx\n",
+					found_key.objectid, key->objectid);
 			break;
 		}
 		if (found_key.type != key->type) {
@@ -1199,8 +1206,12 @@ static int do_list_roots(struct btrfs_root *root)
 		read_extent_buffer(leaf, &ri, offset, sizeof(ri));
 		printf(" tree ");
 		btrfs_print_key(&disk_key);
-		printf(" %llu level %d\n", btrfs_root_bytenr(&ri),
-		       btrfs_root_level(&ri));
+		if(bconf_is_hex())
+			printf(" 0x%llx level %d\n", btrfs_root_bytenr(&ri),
+			       btrfs_root_level(&ri));
+		else
+			printf(" %llu level %d\n", btrfs_root_bytenr(&ri),
+				btrfs_root_level(&ri));
 		path.slots[0]++;
 	}
 	btrfs_release_path(&path);

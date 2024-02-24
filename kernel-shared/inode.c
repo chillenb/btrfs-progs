@@ -23,6 +23,7 @@
  * but should not be a huge problem since progs is less performance sensitive.
  */
 
+#include "common/utils.h"
 #include "kerncompat.h"
 #include <sys/stat.h>
 #include <errno.h>
@@ -681,8 +682,12 @@ struct btrfs_root *btrfs_mksubvol(struct btrfs_root *root,
 				 root->root_key.objectid,
 				 dirid, index, buf, len);
 	if (ret) {
-		error("unable to add root backref for %llu: %d",
-				root->root_key.objectid, ret);
+		if(!bconf_is_hex())
+			error("unable to add root backref for %llu: %d",
+					root->root_key.objectid, ret);
+		else
+			error("unable to add root backref for 0x%llx: %d",
+					root->root_key.objectid, ret);
 		goto fail;
 	}
 
@@ -691,8 +696,12 @@ struct btrfs_root *btrfs_mksubvol(struct btrfs_root *root,
 				 BTRFS_ROOT_REF_KEY, root_objectid,
 				 dirid, index, buf, len);
 	if (ret) {
-		error("unable to add root ref for %llu: %d",
-				root->root_key.objectid, ret);
+		if(!bconf_is_hex())
+			error("unable to add root backref for %llu: %d",
+					root->root_key.objectid, ret);
+		else
+			error("unable to add root backref for 0x%llx: %d",
+					root->root_key.objectid, ret);
 		goto fail;
 	}
 

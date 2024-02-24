@@ -1041,6 +1041,17 @@ void bconf_set_dry_run(void)
 	bconf.dry_run = 1;
 }
 
+void bconf_set_hex(void)
+{
+	pr_verbose(LOG_INFO, "Hex output requested\n");
+	bconf.hex = 1;
+}
+
+bool bconf_is_hex(void)
+{
+	return bconf.hex == 1;
+}
+
 bool bconf_is_dry_run(void)
 {
 	return bconf.dry_run == 1;

@@ -371,8 +371,13 @@ static void print_block_group_info(struct block_group_record *rec, char *prefix)
 {
 	if (prefix)
 		printf("%s", prefix);
-	printf("Block Group: start = %llu, len = %llu, flag = %llx\n",
-	       rec->objectid, rec->offset, rec->flags);
+	if(bconf_is_hex()) {
+		printf("Block Group: start = 0x%llx, len = 0x%llx, flag = 0x%llx\n",
+		       rec->objectid, rec->offset, rec->flags);
+	} else {
+		printf("Block Group: start = %llu, len = %llu, flag = %llx\n",
+			rec->objectid, rec->offset, rec->flags);
+	}
 }
 
 static void print_block_group_tree(struct block_group_tree *tree)
@@ -396,8 +401,13 @@ static void print_stripe_info(struct stripe *data, char *prefix1, char *prefix2,
 		printf("%s", prefix1);
 	if (prefix2)
 		printf("%s", prefix2);
-	printf("[%2d] Stripe: devid = %llu, offset = %llu\n",
-	       index, data->devid, data->offset);
+	if(bconf_is_hex()) {
+		printf("[%2d] Stripe: devid = %llu, offset = 0x%llx\n",
+		       index, data->devid, data->offset);
+	} else {
+		printf("[%2d] Stripe: devid = %llu, offset = %llu\n",
+			index, data->devid, data->offset);
+	}
 }
 
 static void print_chunk_self_info(struct chunk_record *rec, char *prefix)
@@ -406,8 +416,13 @@ static void print_chunk_self_info(struct chunk_record *rec, char *prefix)
 
 	if (prefix)
 		printf("%s", prefix);
-	printf("Chunk: start = %llu, len = %llu, type = %llx, num_stripes = %u\n",
-	       rec->offset, rec->length, rec->type_flags, rec->num_stripes);
+	if(bconf_is_hex()) {
+		printf("Chunk: start = 0x%llx, len = 0x%llx, type = 0x%llx, num_stripes = %u\n",
+		       rec->offset, rec->length, rec->type_flags, rec->num_stripes);
+	} else {
+		printf("Chunk: start = %llu, len = %llu, type = 0x%llx, num_stripes = %u\n",
+			rec->offset, rec->length, rec->type_flags, rec->num_stripes);
+	}
 	if (prefix)
 		printf("%s", prefix);
 	printf("    Stripes list:\n");
@@ -434,8 +449,13 @@ static void print_device_extent_info(struct device_extent_record *rec,
 {
 	if (prefix)
 		printf("%s", prefix);
-	printf("Device extent: devid = %llu, start = %llu, len = %llu, chunk offset = %llu\n",
-	       rec->objectid, rec->offset, rec->length, rec->chunk_offset);
+	if(bconf_is_hex()) {
+		printf("Device extent: devid = %llu, start = 0x%llx, len = 0x%llx, chunk offset = 0x%llx\n",
+		       rec->objectid, rec->offset, rec->length, rec->chunk_offset);
+	} else {
+		printf("Device extent: devid = %llu, start = %llu, len = %llu, chunk offset = %llu\n",
+			rec->objectid, rec->offset, rec->length, rec->chunk_offset);
+	}
 }
 
 static void print_device_extent_tree(struct device_extent_tree *tree)
@@ -586,10 +606,17 @@ static int check_chunk_by_metadata(struct recover_control *rc,
 			btrfs_release_path(&path);
 			return ret;
 		} else if (ret > 0) {
-			if (rc->verbose)
-				fprintf(stderr,
-					"No device extent[%llu, %llu]\n",
-					stripe->devid, stripe->offset);
+			if (rc->verbose) {
+				if(bconf_is_hex()) {
+					fprintf(stderr,
+						"No device extent[0x%llx, 0x%llx]\n",
+						stripe->devid, stripe->offset);
+				} else {
+					fprintf(stderr,
+						"No device extent[%llu, %llu]\n",
+						stripe->devid, stripe->offset);
+				}
+			}
 			btrfs_release_path(&path);
 			return -ENOENT;
 		}
@@ -598,13 +625,23 @@ static int check_chunk_by_metadata(struct recover_control *rc,
 		dev_extent = btrfs_item_ptr(l, slot, struct btrfs_dev_extent);
 		if (chunk->offset !=
 		    btrfs_dev_extent_chunk_offset(l, dev_extent)) {
-			if (rc->verbose)
-				fprintf(stderr,
-					"Device tree mismatch with chunks dev_extent[%llu, %llu], chunk[%llu, %llu]\n",
-					btrfs_dev_extent_chunk_offset(l,
-								dev_extent),
-					btrfs_dev_extent_length(l, dev_extent),
-					chunk->offset, chunk->length);
+			if (rc->verbose) {
+				if(bconf_is_hex()) { 
+					fprintf(stderr,
+						"Device tree mismatch with chunks dev_extent[0x%llx, 0x%llx], chunk[0x%llx, 0x%llx]\n",
+						btrfs_dev_extent_chunk_offset(l,
+									dev_extent),
+						btrfs_dev_extent_length(l, dev_extent),
+						chunk->offset, chunk->length);
+				} else {
+					fprintf(stderr,
+						"Device tree mismatch with chunks dev_extent[%llu, %llu], chunk[%llu, %llu]\n",
+						btrfs_dev_extent_chunk_offset(l,
+									dev_extent),
+						btrfs_dev_extent_length(l, dev_extent),
+						chunk->offset, chunk->length);
+				}
+			}
 			btrfs_release_path(&path);
 			return -ENOENT;
 		}
@@ -624,9 +661,15 @@ bg_check:
 		btrfs_release_path(&path);
 		return ret;
 	} else if (ret > 0) {
-		if (rc->verbose)
-			fprintf(stderr, "No block group[%llu, %llu]\n",
-				key.objectid, key.offset);
+		if (rc->verbose) {
+			if(bconf_is_hex()) { 
+				fprintf(stderr, "No block group[0x%llx, 0x%llx]\n",
+					key.objectid, key.offset);
+			} else {
+				fprintf(stderr, "No block group[%llu, %llu]\n",
+					key.objectid, key.offset);
+			}
+		}
 		btrfs_release_path(&path);
 		return -ENOENT;
 	}
@@ -635,11 +678,19 @@ bg_check:
 	slot = path.slots[0];
 	bg_ptr = btrfs_item_ptr(l, slot, struct btrfs_block_group_item);
 	if (chunk->type_flags != btrfs_block_group_flags(l, bg_ptr)) {
-		if (rc->verbose)
-			fprintf(stderr,
-				"Chunk[%llu, %llu]'s type(%llu) is different with Block Group's type(%llu)\n",
-				chunk->offset, chunk->length, chunk->type_flags,
-				btrfs_block_group_flags(l, bg_ptr));
+		if (rc->verbose) {
+			if(bconf_is_hex()) {
+				fprintf(stderr,
+					"Chunk[0x%llx, 0x%llx]'s type(0x%llx) is different with Block Group's type(0x%llx)\n",
+					chunk->offset, chunk->length, chunk->type_flags,
+					btrfs_block_group_flags(l, bg_ptr));
+			} else {
+				fprintf(stderr,
+					"Chunk[%llu, %llu]'s type(%llu) is different with Block Group's type(%llu)\n",
+					chunk->offset, chunk->length, chunk->type_flags,
+					btrfs_block_group_flags(l, bg_ptr));
+			}
+		}
 		btrfs_release_path(&path);
 		return -ENOENT;
 	}
@@ -1406,10 +1457,17 @@ static int rebuild_block_group(struct btrfs_trans_handle *trans,
 		 * write/block reserve happening in that block group.
 		 */
 		if (ret < 0) {
-			fprintf(stderr,
-				"Fail to search extent tree for block group: [%llu,%llu]\n",
-				chunk_rec->offset,
-				chunk_rec->offset + chunk_rec->length);
+			if(bconf_is_hex()) {
+				fprintf(stderr,
+					"Fail to search extent tree for block group: [0x%llx,0x%llx]\n",
+					chunk_rec->offset,
+					chunk_rec->offset + chunk_rec->length);
+			} else {
+				fprintf(stderr,
+					"Fail to search extent tree for block group: [%llu,%llu]\n",
+					chunk_rec->offset,
+					chunk_rec->offset + chunk_rec->length);
+			}
 			fprintf(stderr,
 				"Mark the block group full to prevent block rsv problems\n");
 			used = chunk_rec->length;
@@ -2167,10 +2225,17 @@ static int btrfs_rebuild_ordered_data_chunk_stripes(struct recover_control *rc,
 							      &flags);
 			if (err) {
 				list_move(&chunk->list, &rc->bad_chunks);
-				if (flags & EQUAL_STRIPE)
-					fprintf(stderr,
-			"Failure: too many equal stripes in chunk[%llu %llu]\n",
-						chunk->offset, chunk->length);
+				if (flags & EQUAL_STRIPE) {
+					if(bconf_is_hex()) {
+						fprintf(stderr,
+							"Failure: too many equal stripes in chunk[0x%llx 0x%llx]\n",
+							chunk->offset, chunk->length);
+					} else {
+						fprintf(stderr,
+							"Failure: too many equal stripes in chunk[%llu %llu]\n",
+							chunk->offset, chunk->length);
+					}
+				}
 				if (!ret)
 					ret = err;
 			} else
@@ -2217,8 +2282,13 @@ static int btrfs_recover_chunks(struct recover_control *rc)
 
 		ret = insert_cache_extent(&rc->chunk, &chunk->cache);
 		if (ret == -EEXIST) {
-			error("duplicate entry in cache start %llu size %llu",
+			if(bconf_is_hex()) {
+				error("duplicate entry in cache start 0x%llx size 0x%llx",
 					chunk->cache.start, chunk->cache.size);
+			} else {
+				error("duplicate entry in cache start %llu size %llu",
+					chunk->cache.start, chunk->cache.size);
+			}
 			free(chunk);
 			return ret;
 		}

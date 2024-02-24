@@ -14,6 +14,7 @@
  * Boston, MA 021110-1307, USA.
  */
 
+#include "common/utils.h"
 #include "kerncompat.h"
 #include <stdlib.h>
 #include "kernel-lib/rbtree.h"
@@ -313,8 +314,12 @@ again:
 			if (ret < 0) {
 				free_extent_buffer(eb);
 				errno = -ret;
-				error("failed to write tree block %llu: %m",
-				      eb->start);
+				if(!bconf_is_hex())
+					error("failed to write tree block %llu: %m",
+						eb->start);
+				else
+					error("failed to write tree block 0x%llx: %m",
+						eb->start);
 				goto cleanup;
 			}
 			start += eb->len;

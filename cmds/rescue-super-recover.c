@@ -176,7 +176,10 @@ static int read_fs_supers(struct btrfs_recover_superblock *recover)
 static void print_super_info(struct super_block_record *record)
 {
 	printf("\t\tdevice name = %s\n", record->device_name);
-	printf("\t\tsuperblock bytenr = %llu\n", record->bytenr);
+	if(bconf_is_hex())
+		printf("\t\tsuperblock bytenr = 0x%llx\n", record->bytenr);
+	else
+		printf("\t\tsuperblock bytenr = %llu\n", record->bytenr);
 }
 
 static void print_all_supers(struct btrfs_recover_superblock *recover)

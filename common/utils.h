@@ -105,6 +105,7 @@ struct btrfs_config {
 	int verbose;
 	/* Command line request to skip any modification actions. */
 	int dry_run;
+	int hex;
 	struct list_head params;
 };
 extern struct btrfs_config bconf;
@@ -122,6 +123,8 @@ void bconf_add_param(const char *key, const char *value);
 void bconf_save_param(const char *str);
 void bconf_set_dry_run(void);
 bool bconf_is_dry_run(void);
+void bconf_set_hex(void);
+bool bconf_is_hex(void);
 const char *bconf_param_value(const char *key);
 
 /* Pseudo random number generator wrappers */

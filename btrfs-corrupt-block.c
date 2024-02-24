@@ -54,8 +54,12 @@ static int debug_corrupt_sector(struct btrfs_root *root, u64 logical, int mirror
 
 	buf = malloc(root->fs_info->sectorsize);
 	if (!buf) {
-		error_msg(ERROR_MSG_MEMORY, "allocating memory for bytenr %llu",
-			  logical);
+		if(bconf_is_hex())
+			error_msg(ERROR_MSG_MEMORY, "allocating memory for bytenr 0x%llx",
+				  logical);
+		else
+			error_msg(ERROR_MSG_MEMORY, "allocating memory for bytenr %llu",
+				  logical);
 		return -ENOMEM;
 	}
 
@@ -69,15 +73,24 @@ static int debug_corrupt_sector(struct btrfs_root *root, u64 logical, int mirror
 				ret = -EIO;
 			if (ret < 0) {
 				errno = -ret;
-				error("cannot read bytenr %llu: %m", logical);
+				if(bconf_is_hex())
+					error("cannot read bytenr 0x%llx: %m", logical);
+				else
+					error("cannot read bytenr %llu: %m", logical);
 				return ret;
 			}
-			printf("corrupting %llu copy %d\n", logical, mirror_num);
+			if(bconf_is_hex())
+				printf("corrupting 0x%llx copy %d\n", logical, mirror_num);
+			else
+				printf("corrupting %llu copy %d\n", logical, mirror_num);
 			memset(buf, 0, sectorsize);
 			ret = write_data_to_disk(fs_info, buf, logical, sectorsize);
 			if (ret < 0) {
 				errno = -ret;
-				error("cannot write bytenr %llu: %m", logical);
+				if(bconf_is_hex())
+					error("cannot write bytenr 0x%llx: %m", logical);
+				else
+					error("cannot write bytenr %llu: %m", logical);
 				return ret;
 			}
 		}
@@ -151,9 +164,12 @@ static void corrupt_keys(struct btrfs_trans_handle *trans,
 	if (bad_slot == slot)
 		return;
 
-	fprintf(stderr,
-		"corrupting keys in block %llu slot %d swapping with %d\n",
-		eb->start, slot, bad_slot);
+	if(bconf_is_hex())
+		fprintf(stderr, "corrupting keys in block 0x%llx slot %d swapping with %d\n",
+			eb->start, slot, bad_slot);
+	else
+		fprintf(stderr, "corrupting keys in block %llu slot %d swapping with %d\n",
+			eb->start, slot, bad_slot);
 
 	if (btrfs_header_level(eb) == 0) {
 		btrfs_item_key(eb, &bad_key, bad_slot);
@@ -236,9 +252,14 @@ static int corrupt_extent(struct btrfs_trans_handle *trans,
 			goto next;
 
 		if (should_del) {
-			fprintf(stderr,
-				"deleting extent record: key %llu %u %llu\n",
-				key.objectid, key.type, key.offset);
+			if(bconf_is_hex())
+				fprintf(stderr,
+					"deleting extent record: key 0x%llx %u 0x%llx\n",
+					key.objectid, key.type, key.offset);
+			else
+				fprintf(stderr,
+					"deleting extent record: key %llu %u %llu\n",
+					key.objectid, key.type, key.offset);
 
 			if (key.type == BTRFS_EXTENT_ITEM_KEY) {
 				/* make sure this extent doesn't get
@@ -249,9 +270,14 @@ static int corrupt_extent(struct btrfs_trans_handle *trans,
 
 			btrfs_del_item(trans, root, path);
 		} else {
-			fprintf(stderr,
-				"corrupting extent record: key %llu %u %llu\n",
-				key.objectid, key.type, key.offset);
+			if(bconf_is_hex())
+				fprintf(stderr,
+					"corrupting extent record: key 0x%llx %u 0x%llx\n",
+					key.objectid, key.type, key.offset);
+			else
+				fprintf(stderr,
+					"corrupting extent record: key %llu %u %llu\n",
+					key.objectid, key.type, key.offset);
 			ptr = btrfs_item_ptr_offset(leaf, slot);
 			item_size = btrfs_item_size(leaf, slot);
 			memset_extent_buffer(leaf, 0, ptr, item_size);
@@ -515,14 +541,20 @@ static int corrupt_block_group(struct btrfs_root *root, u64 bg, char *field)
 
 	ret = btrfs_search_slot(trans, root, &key, path, 0, 1);
 	if (ret < 0) {
-		error("error searching for bg %llu %d", bg, ret);
+		if(bconf_is_hex())
+			error("error searching for bg 0x%llx %d", bg, ret);
+		else
+			error("error searching for bg %llu %d", bg, ret);
 		goto out;
 	}
 
 	ret = 0;
 	btrfs_item_key_to_cpu(path->nodes[0], &key, path->slots[0]);
 	if (key.type != BTRFS_BLOCK_GROUP_ITEM_KEY) {
-		error("couldn't find the bg %llu", bg);
+		if(bconf_is_hex())
+			error("couldn't find the bg 0x%llx", bg);
+		else
+			error("couldn't find the bg %llu", bg);
 		goto out;
 	}
 
@@ -709,7 +741,10 @@ static int corrupt_inode(struct btrfs_trans_handle *trans,
 		goto out;
 	if (ret) {
 		if (!path->slots[0]) {
-			error("couldn't find inode %llu", inode);
+			if(bconf_is_hex())
+				error("couldn't find inode 0x%llx", inode);
+			else
+				error("couldn't find inode %llu", inode);
 			ret = -ENOENT;
 			goto out;
 		}
@@ -719,7 +754,10 @@ static int corrupt_inode(struct btrfs_trans_handle *trans,
 
 	btrfs_item_key_to_cpu(path->nodes[0], &key, path->slots[0]);
 	if (key.objectid != inode) {
-		error("couldn't find inode %llu", inode);
+		if(bconf_is_hex())
+			error("couldn't find inode 0x%llx", inode);
+		else
+			error("couldn't find inode %llu", inode);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -811,8 +849,10 @@ static int corrupt_file_extent(struct btrfs_trans_handle *trans,
 	if (ret < 0)
 		goto out;
 	if (ret) {
-		error("couldn't find extent %llu for inode %llu",
-			extent, inode);
+		if(bconf_is_hex())
+			error("couldn't find inode 0x%llx for extent 0x%llx", inode, extent);
+		else
+			error("couldn't find inode %llu for extent %llu", inode, extent);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -898,8 +938,10 @@ static int corrupt_metadata_block(struct btrfs_fs_info *fs_info, u64 block,
 		free_extent_buffer(eb);
 		if (ret < 0) {
 			errno = -ret;
-			error("failed to write extent buffer at %llu: %m",
-				eb->start);
+			if(bconf_is_hex())
+				error("failed to write extent buffer at 0x%llx: %m", eb->start);
+			else
+				error("failed to write extent buffer at %llu: %m", eb->start);
 			return ret;
 		}
 		break;
@@ -927,7 +969,10 @@ static int corrupt_metadata_block(struct btrfs_fs_info *fs_info, u64 block,
 
 		root = btrfs_read_fs_root(fs_info, &root_key);
 		if (IS_ERR(root)) {
-			error("couldn't find owner root %llu", key.objectid);
+			if(bconf_is_hex())
+				error("couldn't find owner root 0x%llx", key.objectid);
+			else
+				error("couldn't find owner root %llu", key.objectid);
 			return PTR_ERR(root);
 		}
 
@@ -1153,12 +1198,20 @@ static int corrupt_item_nocow(struct btrfs_trans_handle *trans,
 	}
 	btrfs_item_key_to_cpu(leaf, &key, slot);
 	if (del) {
-		fprintf(stdout, "Deleting key and data [%llu, %u, %llu]\n",
-			key.objectid, key.type, key.offset);
+		if(bconf_is_hex())
+			fprintf(stdout, "Deleting key and data [0x%llx, %u, 0x%llx]\n",
+				key.objectid, key.type, key.offset);
+		else
+				fprintf(stdout, "Deleting key and data [%llu, %u, %llu]\n",
+				key.objectid, key.type, key.offset);
 		btrfs_del_item(trans, root, path);
 	} else {
-		fprintf(stdout, "Corrupting key and data [%llu, %u, %llu]\n",
-			key.objectid, key.type, key.offset);
+		if(bconf_is_hex())
+			fprintf(stdout, "Corrupting key and data [0x%llx, %u, 0x%llx]\n",
+				key.objectid, key.type, key.offset);
+		else
+			fprintf(stdout, "Corrupting key and data [%llu, %u, %llu]\n",
+				key.objectid, key.type, key.offset);
 		ptr = btrfs_item_ptr_offset(leaf, slot);
 		item_size = btrfs_item_size(leaf, slot);
 		memset_extent_buffer(leaf, 0, ptr, item_size);
@@ -1258,7 +1311,10 @@ static int find_chunk_offset(struct btrfs_root *root,
 	 */
 	ret = btrfs_search_slot(NULL, root, &key, path, 0, 0);
 	if (ret > 0) {
-		error("can't find chunk with given offset %llu", offset);
+		if(bconf_is_hex())
+			error("can't find chunk with given offset 0x%llx", offset);
+		else
+			error("can't find chunk with given offset %llu", offset);
 		goto out;
 	}
 	if (ret < 0) {
@@ -1272,8 +1328,11 @@ out:
 
 static void parse_key(u64 *objectid, u8 *type, u64 *offset)
 {
-
-	int ret = sscanf(optarg, "%llu,%hhu,%llu", objectid, type, offset);
+	int ret;
+	if(bconf_is_hex())
+		ret = sscanf(optarg, "0x%llx,0x%hhx,0x%llx", objectid, type, offset);
+	else
+		ret = sscanf(optarg, "%llu,%hhu,%llu", objectid, type, offset);
 	if (ret != 3) {
 	        error("error parsing key '%s': %d", optarg, errno);
 		usage(&corrupt_block_cmd, 1);
@@ -1293,7 +1352,10 @@ static struct btrfs_root *open_root(struct btrfs_fs_info *fs_info,
 
 	root = btrfs_read_fs_root(fs_info, &root_key);
 	if (IS_ERR(root)) {
-		error("couldn't find root %llu", root_objectid);
+		if(bconf_is_hex())
+			error("couldn't find root 0x%llx", root_objectid);
+		else
+			error("couldn't find root %llu", root_objectid);
 		usage(&corrupt_block_cmd, 1);
 	}
 
@@ -1616,9 +1678,14 @@ int main(int argc, char **argv)
 			eb = btrfs_find_create_tree_block(root->fs_info,
 					logical);
 			if (!eb) {
-				error_msg(ERROR_MSG_MEMORY,
-					"allocating extent buffer for bytenr %llu",
-					logical);
+				if(bconf_is_hex())
+					error_msg(ERROR_MSG_MEMORY,
+						"allocating extent buffer for bytenr 0x%llx",
+						logical);
+				else
+					error_msg(ERROR_MSG_MEMORY,
+						"allocating extent buffer for bytenr %llu",
+						logical);
 				ret = 1;
 				goto out_close;
 			}

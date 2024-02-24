@@ -45,6 +45,7 @@ static const char * const btrfs_cmd_group_usage[] = {
 	"  -q|--quiet        print only errors\n"
 	"  --log <level>     set log level (default, info, verbose, debug, quiet)\n"
 	"  --dry-run         if supported, do not do any active/changing actions\n"
+	"  --hex             print offsets and object IDs in hexadecimal format\n"
 	"\n"
 	"Options for the main command only:\n"
 	"  --help            print condensed help for all subcommands\n"
@@ -295,6 +296,7 @@ static int handle_global_options(int argc, char **argv)
 		{ "log", required_argument, NULL, OPT_LOG },
 		{ "param", required_argument, NULL, GETOPT_VAL_PARAM },
 		{ "dry-run", no_argument, NULL, GETOPT_VAL_DRY_RUN },
+		{ "hex", no_argument, NULL, GETOPT_VAL_HEX },
 		{ NULL, 0, NULL, 0}
 	};
 	int shift;
@@ -325,6 +327,9 @@ static int handle_global_options(int argc, char **argv)
 			break;
 		case GETOPT_VAL_DRY_RUN:
 			bconf_set_dry_run();
+			break;
+		case GETOPT_VAL_HEX:
+			bconf_set_hex();
 			break;
 		case 'v':
 			bconf_be_verbose();

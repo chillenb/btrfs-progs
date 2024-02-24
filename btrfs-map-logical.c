@@ -37,6 +37,7 @@
 #include "common/extent-cache.h"
 #include "common/extent-tree-utils.h"
 #include "common/string-utils.h"
+#include "common/utils.h"
 #include "cmds/commands.h"
 
 #define BUFFER_SIZE SZ_64K
@@ -123,18 +124,32 @@ static int __print_mapping_info(struct btrfs_fs_info *fs_info, u64 logical,
 				      &cur_len, &multi, mirror_num, NULL);
 		if (ret) {
 			errno = -ret;
-			fprintf(info_file,
-				"Error: fails to map mirror%d logical %llu: %m\n",
-				mirror_num, logical);
+			if(bconf_is_hex()) {
+				fprintf(info_file,
+					"Error: fails to map mirror%d logical 0x%llx: %m\n",
+					mirror_num, logical);
+			} else {
+				fprintf(info_file,
+					"Error: fails to map mirror%d logical %llu: %m\n",
+					mirror_num, logical);
+			}
 			return ret;
 		}
 		for (i = 0; i < multi->num_stripes; i++) {
 			device = multi->stripes[i].dev;
-			fprintf(info_file,
-				"mirror %d logical %llu physical %llu device %s\n",
-				mirror_num, logical + cur_offset,
-				multi->stripes[0].physical,
-				device->name);
+			if(bconf_is_hex()) {
+				fprintf(info_file,
+					"mirror %d logical 0x%llx physical 0x%llx device %s\n",
+					mirror_num, logical + cur_offset,
+					multi->stripes[0].physical,
+					device->name);
+			} else {
+				fprintf(info_file,
+					"mirror %d logical %llu physical %llu device %s\n",
+					mirror_num, logical + cur_offset,
+					multi->stripes[0].physical,
+					device->name);
+			}
 		}
 		free(multi);
 		multi = NULL;
@@ -185,8 +200,13 @@ static int write_extent_content(struct btrfs_fs_info *fs_info, int out_fd,
 					  mirror);
 		if (ret < 0) {
 			errno = -ret;
-			error("failed to read extent at [%llu, %llu]: %m",
-				logical, logical + length);
+			if(bconf_is_hex()) {
+				error("failed to read mirror%d extent at [0x%llx, 0x%llx]: %m",
+					mirror, logical, logical + length);
+			} else {
+				error("failed to read extent at [%llu, %llu]: %m",
+					logical, logical + length);
+			}
 			return ret;
 		}
 		ret = write(out_fd, buffer, cur_len);
@@ -308,8 +328,13 @@ int main(int argc, char **argv)
 	ret = map_one_extent(root->fs_info, &cur_logical, &cur_len, 0);
 	if (ret < 0) {
 		errno = -ret;
-		error("failed to find extent at [%llu,%llu): %m",
-			cur_logical, cur_logical + cur_len);
+		if(bconf_is_hex()) {
+			error("failed to find extent at [0x%llx,0x%llx): %m",
+				cur_logical, cur_logical + cur_len);
+		} else {
+			error("failed to find extent at [%llu,%llu): %m",
+				cur_logical, cur_logical + cur_len);
+		}
 		goto out_close_fd;
 	}
 	/*
@@ -321,13 +346,23 @@ int main(int argc, char **argv)
 		ret = map_one_extent(root->fs_info, &cur_logical, &cur_len, 1);
 		if (ret < 0) {
 			errno = -ret;
-			error("Failed to find extent at [%llu,%llu): %m",
-				cur_logical, cur_logical + cur_len);
+			if(bconf_is_hex()) {
+				error("failed to find extent at [0x%llx,0x%llx): %m",
+					cur_logical, cur_logical + cur_len);
+			} else {
+				error("failed to find extent at [%llu,%llu): %m",
+					cur_logical, cur_logical + cur_len);
+			}
 			goto out_close_fd;
 		}
 		if (ret > 0) {
-			error("failed to find any extent at [%llu,%llu)",
-				cur_logical, cur_logical + cur_len);
+			if(bconf_is_hex()) {
+				error("failed to find any extent at [0x%llx,0x%llx)",
+					cur_logical, cur_logical + cur_len);
+			} else {
+				error("failed to find any extent at [%llu,%llu)",
+					cur_logical, cur_logical + cur_len);
+			}
 			goto out_close_fd;
 		}
 	}

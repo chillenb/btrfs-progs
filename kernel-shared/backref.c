@@ -1209,7 +1209,7 @@ int extent_from_logical(struct btrfs_fs_info *fs_info, u64 logical,
 	flags = btrfs_extent_flags(eb, ei);
 
 	pr_debug("logical %llu is at position %llu within the extent (%llu "
-		 "EXTENT_ITEM %llu) flags %#llx size %u\n",
+		 "EXTENT_ITEM %llu) flags 0x%llx size %u\n",
 		 logical, logical - found_key->objectid, found_key->objectid,
 		 found_key->offset, flags, item_size);
 
@@ -1381,7 +1381,7 @@ int iterate_extent_inodes(struct btrfs_fs_info *fs_info,
 		ULIST_ITER_INIT(&root_uiter);
 		while (!ret && (root_node = ulist_next(roots, &root_uiter))) {
 			pr_debug("root %llu references leaf %llu, data list "
-				 "%#llx\n", root_node->val, ref_node->val,
+				 "0x%llx\n", root_node->val, ref_node->val,
 				 ref_node->aux);
 			ret = iterate_leaf_refs((struct extent_inode_elem *)
 						(uintptr_t)ref_node->aux,
